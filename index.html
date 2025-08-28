@@ -1,0 +1,211 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Pendataan Fasilitas Interaktif</title>
+<style>
+body { font-family: Arial; padding: 20px; background: #f7f7f7; }
+h2 { text-align: center; }
+label { display: block; margin-top: 10px; font-weight: bold; }
+input, select, button { width: 100%; padding: 8px; margin-top: 5px; border-radius:5px; border:1px solid #ccc; box-sizing:border-box; }
+button { cursor:pointer; margin-top: 10px; }
+table { width:100%; border-collapse: collapse; margin-top:20px; }
+th, td { border:1px solid #ccc; padding:8px; text-align:center; }
+th { background:#007bff; color:#fff; }
+</style>
+</head>
+<body>
+
+<h2>Pendataan Kebutuhan Perbaikan Fasilitas (Interaktif)</h2>
+
+<label>Pilih Kategori:</label>
+<select id="kategoriSelect">
+    <option value="">--Pilih Kategori--</option>
+    <option value="akom_a">Akom A</option>
+    <option value="akom_b">Akom B</option>
+    <option value="masjid">Fasilitas Masjid</option>
+    <option value="biliard">Biliard</option>
+    <option value="laundry">Laundry</option>
+    <option value="kantin_a">Kantin A</option>
+    <option value="kantin_b">Kantin B</option>
+    <option value="admin">Admin</option>
+    <option value="warehouse">Warehouse</option>
+    <option value="rechall">Rechall</option>
+    <option value="klinik">Klinik</option>
+    <option value="maintenance">Maintenance</option>
+    <option value="control_room">Central Control Room</option>
+    <option value="laboratorium">Laboratorium</option>
+    <option value="fire_shelter">Fire Shelter</option>
+    <option value="project_office">Project Office</option>
+    <option value="portacome">Portacome</option>
+    <option value="pos_security">Pos Security</option>
+    <option value="gudang_pfo">Gudang PFO</option>
+</select>
+
+<form id="kategoriForm" style="display:none;">
+    <input type="hidden" id="editIndex">
+    <div id="formFields"></div>
+    <button type="submit">Simpan Data</button>
+</form>
+
+<button id="downloadBtn">Download Semua Excel</button>
+
+<table id="dataTable">
+    <thead><tr></tr></thead>
+    <tbody></tbody>
+</table>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+<script>
+const kategoriSelect = document.getElementById('kategoriSelect');
+const formFields = document.getElementById('formFields');
+const kategoriForm = document.getElementById('kategoriForm');
+const dataTable = document.getElementById('dataTable');
+const downloadBtn = document.getElementById('downloadBtn');
+const editIndexInput = document.getElementById('editIndex');
+
+let allData = {}; 
+let headers = [];
+let unsaved = false;
+let prevKategori = '';
+
+const kategoriFieldMap = {
+    "akom_a": ["Nomor","Nama Barang","Merek/Type","Volume","Keterangan"],
+    "akom_b": ["Nomor","Nama Barang","Merek/Type","Volume","Keterangan"],
+    "masjid": ["Nomor","Nama Barang","Merek/Type","Volume","Keterangan"],
+    "biliard": ["Nomor","Nama Barang","Merek/Type","Volume","Keterangan"],
+    "laundry": ["Nomor","Nama Barang","Merek/Type","Volume","Keterangan"],
+    "kantin_a": ["Nomor","Nama Barang","Merek/Type","Volume","Keterangan"],
+    "kantin_b": ["Nomor","Nama Barang","Merek/Type","Volume","Keterangan"],
+    "admin": ["Nomor","Nama Barang","Merek/Type","Volume","Keterangan"],
+    "warehouse": ["Nomor","Nama Barang","Merek/Type","Volume","Keterangan"],
+    "rechall": ["Nomor","Nama Barang","Merek/Type","Volume","Keterangan"],
+    "klinik": ["Nomor","Nama Barang","Merek/Type","Volume","Keterangan"],
+    "maintenance": ["Nomor","Nama Barang","Merek/Type","Volume","Keterangan"],
+    "control_room": ["Nomor","Nama Barang","Merek/Type","Volume","Keterangan"],
+    "laboratorium": ["Nomor","Nama Barang","Merek/Type","Volume","Keterangan"],
+    "fire_shelter": ["Nomor","Nama Barang","Merek/Type","Volume","Keterangan"],
+    "project_office": ["Nomor","Nama Barang","Merek/Type","Volume","Keterangan"],
+    "portacome": ["Nomor","Nama Barang","Merek/Type","Volume","Keterangan"],
+    "pos_security": ["Nomor","Nama Barang","Merek/Type","Volume","Keterangan"],
+    "gudang_pfo": ["Nomor","Nama Barang","Merek/Type","Volume","Keterangan"]
+};
+
+kategoriSelect.addEventListener('change', () => {
+    if(unsaved){
+        if(!confirm("Data belum disimpan. Lanjut pindah kategori?")){
+            kategoriSelect.value = prevKategori || '';
+            return;
+        }
+    }
+    const kategori = kategoriSelect.value;
+    prevKategori = kategori;
+    formFields.innerHTML = '';
+    dataTable.querySelector('thead tr').innerHTML = '';
+    dataTable.querySelector('tbody').innerHTML = '';
+    editIndexInput.value = '';
+    unsaved = false;
+
+    if(!kategori) { kategoriForm.style.display='none'; return; }
+    kategoriForm.style.display='block';
+    headers = kategoriFieldMap[kategori];
+    if(!allData[kategori]) allData[kategori] = [];
+
+    headers.forEach(field => {
+        const label = document.createElement('label');
+        label.textContent = field + ':';
+        const input = document.createElement('input');
+        input.type = 'text';
+        input.name = field;
+        input.required = true;
+        input.addEventListener('input', ()=> unsaved=true);
+        formFields.appendChild(label);
+        formFields.appendChild(input);
+    });
+
+    headers.forEach(h => {
+        const th = document.createElement('th');
+        th.textContent = h;
+        dataTable.querySelector('thead tr').appendChild(th);
+    });
+    const thAction = document.createElement('th');
+    thAction.textContent = "Aksi";
+    dataTable.querySelector('thead tr').appendChild(thAction);
+
+    renderTable();
+});
+
+kategoriForm.addEventListener('submit', e => {
+    e.preventDefault();
+    const kategori = kategoriSelect.value;
+    const formData = {};
+    headers.forEach(h => formData[h] = kategoriForm.elements[h].value);
+    const editIndex = editIndexInput.value;
+    if(editIndex===''){
+        allData[kategori].push(formData);
+    } else {
+        allData[kategori][editIndex] = formData;
+        editIndexInput.value='';
+        kategoriForm.querySelector('button').textContent='Simpan Data';
+    }
+    unsaved=false;
+    kategoriForm.reset();
+    sortData(kategori);
+    renderTable();
+});
+
+function sortData(kategori){
+    allData[kategori].sort((a,b)=> a["Nomor"].localeCompare(b["Nomor"], undefined, {numeric:true}));
+}
+
+function renderTable(){
+    const kategori = kategoriSelect.value;
+    const tbody = dataTable.querySelector('tbody');
+    tbody.innerHTML='';
+    allData[kategori].forEach((row,index)=>{
+        const tr = document.createElement('tr');
+        headers.forEach(h=>{
+            const td = document.createElement('td');
+            td.textContent=row[h];
+            tr.appendChild(td);
+        });
+        const tdAction = document.createElement('td');
+        tdAction.innerHTML=`<button onclick="editRow(${index})">Edit</button> <button onclick="deleteRow(${index})">Hapus</button>`;
+        tr.appendChild(tdAction);
+        tbody.appendChild(tr);
+    });
+}
+
+function editRow(index){
+    const kategori = kategoriSelect.value;
+    const row = allData[kategori][index];
+    headers.forEach(h => kategoriForm.elements[h].value = row[h]);
+    editIndexInput.value=index;
+    kategoriForm.querySelector('button').textContent='Update Data';
+    unsaved=true;
+}
+
+function deleteRow(index){
+    const kategori = kategoriSelect.value;
+    if(confirm("Hapus data ini?")){
+        allData[kategori].splice(index,1);
+        renderTable();
+    }
+}
+
+downloadBtn.addEventListener('click', ()=>{
+    const wb = XLSX.utils.book_new();
+    for(const kategori in allData){
+        if(allData[kategori].length>0){
+            sortData(kategori);
+            const ws = XLSX.utils.json_to_sheet(allData[kategori]);
+            XLSX.utils.book_append_sheet(wb, ws, kategori);
+        }
+    }
+    XLSX.writeFile(wb,"Pendataan_Fasilitas_Interaktif.xlsx");
+});
+</script>
+
+</body>
+</html>
